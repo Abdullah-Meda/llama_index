@@ -254,7 +254,7 @@ class KnowledgeGraphIndex(BaseIndex[KG]):
 
         Args:
             triplet (tuple): Knowledge triplet
-            embedding (Any, optional): Embedding option for the triplet. Defaults to None.
+            embedding (Any, optional): Embedding option for the triplet. Defaults to False.
         """
         self._graph_store.upsert_triplet(*triplet)
         triplet_str = str(triplet)
@@ -263,7 +263,48 @@ class KnowledgeGraphIndex(BaseIndex[KG]):
             self._index_struct.add_to_embedding_dict(str(triplet), set_embedding)
             self._storage_context.index_store.add_index_struct(self._index_struct)
 
+    def upsert_triplets_batch(
+        self, 
+        triplets: List[Tuple[str, str, str]], 
+        include_embeddings: bool = False,
+        show_progress: bool = True
+    ) -> None:
+        """Insert triplets and optionally embeds them in batches.
+
+        Used for manual insertion of KG triplets (in the form
+        of (subject, relationship, object)).
+
+        Args:
+            triplets (list): List of Knowledge triplets
+            embedding (bool, optional): Embedding option for the triplets. Defaults to False.
+            show_progress (bool, optional): Option for embedding progress display. Defaults to True.
+        """
+
+        for triplet in triplets:
+            self._graph_store.upsert_triplet(*triplet)
+
+        if include_embeddings:
+            triplet_texts = [str(t) for t in triplets]
+            embed_outputs = self._service_context.embed_model.get_text_embedding_batch(
+                triplet_texts, show_progress=show_progress
+            )
+            for rel_text, rel_embed in zip(triplet_texts, embed_outputs):
+                self._index_struct.add_to_embedding_dict(rel_text, rel_embed)
+
     def add_node(self, keywords: List[str], node: BaseNode) -> None:
+        """Add node.
+
+        Used for manual insertion of nodes (keyed by keywords).
+
+        Args:
+            keywords (List[str]): Keywords to index the node.
+            node (Node): Node to be indexed.
+
+        """
+        self._index_struct.add_node(keywords, node)
+        self._docstore.add_documents([node], allow_update=True)
+
+
         """Add node.
 
         Used for manual insertion of nodes (keyed by keywords).
